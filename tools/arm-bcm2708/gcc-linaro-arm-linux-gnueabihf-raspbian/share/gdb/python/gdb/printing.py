@@ -105,7 +105,7 @@ def register_pretty_printer(obj, printer, replace=False):
     if not hasattr(printer, "__name__") and not hasattr(printer, "name"):
         raise TypeError("printer missing attribute: name")
     if hasattr(printer, "name") and not hasattr(printer, "enabled"):
-        raise TypeError("printer missing attribute: enabled") 
+        raise TypeError("printer missing attribute: enabled")
     if not hasattr(printer, "__call__"):
         raise TypeError("printer missing attribute: __call__")
 
@@ -113,10 +113,9 @@ def register_pretty_printer(obj, printer, replace=False):
         if gdb.parameter("verbose"):
             gdb.write("Registering global %s pretty-printer ...\n" % name)
         obj = gdb
-    else:
-        if gdb.parameter("verbose"):
-            gdb.write("Registering %s pretty-printer for %s ...\n" %
-                      (printer.name, obj.filename))
+    elif gdb.parameter("verbose"):
+        gdb.write("Registering %s pretty-printer for %s ...\n" %
+                  (printer.name, obj.filename))
 
     if hasattr(printer, "name"):
         if not isinstance(printer.name, basestring):
@@ -133,12 +132,10 @@ def register_pretty_printer(obj, printer, replace=False):
         i = 0
         for p in obj.pretty_printers:
             if hasattr(p, "name") and p.name == printer.name:
-                if replace:
-                    del obj.pretty_printers[i]
-                    break
-                else:
-                  raise RuntimeError("pretty-printer already registered: %s" %
-                                     printer.name)
+                if not replace:
+                    raise RuntimeError(f"pretty-printer already registered: {printer.name}")
+                del obj.pretty_printers[i]
+                break
             i = i + 1
 
     obj.pretty_printers.insert(0, printer)
@@ -194,15 +191,15 @@ class RegexpCollectionPrettyPrinter(PrettyPrinter):
 
         # Get the type name.
         typename = gdb.types.get_basic_type(val.type).tag
-        if not typename:
-            return None
-
-        # Iterate over table of type regexps to determine
-        # if a printer is registered for that type.
-        # Return an instantiation of the printer if found.
-        for printer in self.subprinters:
-            if printer.enabled and printer.compiled_re.search(typename):
-                return printer.gen_printer(val)
-
-        # Cannot find a pretty printer.  Return None.
-        return None
+        return (
+            next(
+                (
+                    printer.gen_printer(val)
+                    for printer in self.subprinters
+                    if printer.enabled and printer.compiled_re.search(typename)
+                ),
+                None,
+            )
+            if typename
+            else None
+        )

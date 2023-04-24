@@ -32,7 +32,7 @@ except ImportError:
 def find_type(orig, name):
     typ = orig.strip_typedefs()
     while True:
-        search = str(typ) + '::' + name
+        search = f'{str(typ)}::{name}'
         try:
             return gdb.lookup_type(search)
         except RuntimeError:
@@ -42,7 +42,7 @@ def find_type(orig, name):
         # anything fancier here.
         field = typ.fields()[0]
         if not field.is_base_class:
-            raise ValueError, "Cannot find type %s::%s" % (str(orig), name)
+            raise (ValueError, f"Cannot find type {str(orig)}::{name}")
         typ = field.type
 
 class SharedPointerPrinter:
@@ -52,7 +52,7 @@ class SharedPointerPrinter:
         self.typename = typename
         self.val = val
 
-    def to_string (self):
+    def to_string(self):
         state = 'empty'
         refcounts = self.val['_M_refcount']['_M_pi']
         if refcounts != 0:
@@ -62,7 +62,7 @@ class SharedPointerPrinter:
                 state = 'expired, weak %d' % weakcount
             else:
                 state = 'count %d, weak %d' % (usecount, weakcount - 1)
-        return '%s (%s) %s' % (self.typename, state, self.val['_M_ptr'])
+        return f"{self.typename} ({state}) {self.val['_M_ptr']}"
 
 class UniquePointerPrinter:
     "Print a unique_ptr"
@@ -106,8 +106,8 @@ class StdListPrinter:
 
     def to_string(self):
         if self.val['_M_impl']['_M_node'].address == self.val['_M_impl']['_M_node']['_M_next']:
-            return 'empty %s' % (self.typename)
-        return '%s' % (self.typename)
+            return f'empty {self.typename}'
+        return f'{self.typename}'
 
 class StdListIteratorPrinter:
     "Print std::list::iterator"
@@ -194,10 +194,7 @@ class StdVectorPrinter:
                 if self.item == self.finish and self.so >= self.fo:
                     raise StopIteration
                 elt = self.item.dereference()
-                if elt & (1 << self.so):
-                    obit = 1
-                else:
-                    obit = 0
+                obit = 1 if elt & (1 << self.so) else 0
                 self.so = self.so + 1
                 if self.so >= self.isize:
                     self.item = self.item + 1
@@ -224,20 +221,19 @@ class StdVectorPrinter:
         start = self.val['_M_impl']['_M_start']
         finish = self.val['_M_impl']['_M_finish']
         end = self.val['_M_impl']['_M_end_of_storage']
-        if self.is_bool:
-            start = self.val['_M_impl']['_M_start']['_M_p']
-            so    = self.val['_M_impl']['_M_start']['_M_offset']
-            finish = self.val['_M_impl']['_M_finish']['_M_p']
-            fo     = self.val['_M_impl']['_M_finish']['_M_offset']
-            itype = start.dereference().type
-            bl = 8 * itype.sizeof
-            length   = (bl - so) + bl * ((finish - start) - 1) + fo
-            capacity = bl * (end - start)
-            return ('%s<bool> of length %d, capacity %d'
-                    % (self.typename, int (length), int (capacity)))
-        else:
+        if not self.is_bool:
             return ('%s of length %d, capacity %d'
                     % (self.typename, int (finish - start), int (end - start)))
+        start = self.val['_M_impl']['_M_start']['_M_p']
+        so    = self.val['_M_impl']['_M_start']['_M_offset']
+        finish = self.val['_M_impl']['_M_finish']['_M_p']
+        fo     = self.val['_M_impl']['_M_finish']['_M_offset']
+        itype = start.dereference().type
+        bl = 8 * itype.sizeof
+        length   = (bl - so) + bl * ((finish - start) - 1) + fo
+        capacity = bl * (end - start)
+        return ('%s<bool> of length %d, capacity %d'
+                % (self.typename, int (length), int (capacity)))
 
     def display_hint(self):
         return 'array'
@@ -306,10 +302,10 @@ class StdTuplePrinter:
     def children (self):
         return self._iterator (self.val)
 
-    def to_string (self):
+    def to_string(self):
         if len (self.val.type.fields ()) == 0:
-            return 'empty %s' % (self.typename)
-        return '%s containing' % (self.typename)
+            return f'empty {self.typename}'
+        return f'{self.typename} containing'
 
 class StdStackOrQueuePrinter:
     "Print a std::stack or std::queue"
@@ -321,9 +317,8 @@ class StdStackOrQueuePrinter:
     def children (self):
         return self.visualizer.children()
 
-    def to_string (self):
-        return '%s wrapping: %s' % (self.typename,
-                                    self.visualizer.to_string())
+    def to_string(self):
+        return f'{self.typename} wrapping: {self.visualizer.to_string()}'
 
     def display_hint (self):
         if hasattr (self.visualizer, 'display_hint'):
@@ -373,8 +368,8 @@ class StdRbtreeIteratorPrinter:
     def __init__ (self, typename, val):
         self.val = val
 
-    def to_string (self):
-        typename = str(self.val.type.strip_typedefs()) + '::_Link_type'
+    def to_string(self):
+        typename = f'{str(self.val.type.strip_typedefs())}::_Link_type'
         nodetype = gdb.lookup_type(typename).strip_typedefs()
         return self.val.cast(nodetype).dereference()['_M_value_field']
 
@@ -475,12 +470,12 @@ class StdBitsetPrinter:
         self.typename = typename
         self.val = val
 
-    def to_string (self):
+    def to_string(self):
         # If template_argument handled values, we could print the
         # size.  Or we could use a regexp on the type.
-        return '%s' % (self.typename)
+        return f'{self.typename}'
 
-    def children (self):
+    def children(self):
         words = self.val['_M_w']
         wtype = words.type
 
@@ -505,7 +500,7 @@ class StdBitsetPrinter:
                     result.append(('[%d]' % (byte * tsize * 8 + bit), 1))
                 bit = bit + 1
                 w = w >> 1
-            byte = byte + 1
+            byte += 1
         return result
 
 class StdDequePrinter:
@@ -546,10 +541,7 @@ class StdDequePrinter:
         self.val = val
         self.elttype = val.type.template_argument(0)
         size = self.elttype.sizeof
-        if size < 512:
-            self.buffer_size = int (512 / size)
-        else:
-            self.buffer_size = 1
+        self.buffer_size = int (512 / size) if size < 512 else 1
 
     def to_string(self):
         start = self.val['_M_impl']['_M_start']
@@ -598,7 +590,7 @@ class StdStringPrinter:
         # encountered.
         ptr = self.val ['_M_dataplus']['_M_p']
         realtype = type.unqualified ().strip_typedefs ()
-        reptype = gdb.lookup_type (str (realtype) + '::_Rep').pointer ()
+        reptype = gdb.lookup_type(f'{str(realtype)}::_Rep').pointer()
         header = ptr.cast(reptype) - 1
         len = header.dereference ()['_M_length']
         if hasattr(ptr, "lazy_string"):
@@ -653,10 +645,9 @@ class Tr1UnorderedMapPrinter:
         return '%s with %d elements' % (self.typename, self.val['_M_element_count'])
 
     @staticmethod
-    def flatten (list):
+    def flatten(list):
         for elt in list:
-            for i in elt:
-                yield i
+            yield from elt
 
     @staticmethod
     def format_one (elt):
@@ -708,8 +699,8 @@ class StdForwardListPrinter:
 
     def to_string(self):
         if self.val['_M_impl']['_M_head']['_M_next'] == 0:
-            return 'empty %s' % (self.typename)
-        return '%s' % (self.typename)
+            return f'empty {self.typename}'
+        return f'{self.typename}'
 
 
 # A "regular expression" printer which conforms to the
@@ -722,9 +713,7 @@ class RxPrinter(object):
         self.enabled = True
 
     def invoke(self, value):
-        if not self.enabled:
-            return None
-        return self.function(self.name, value)
+        return self.function(self.name, value) if self.enabled else None
 
 # A pretty-printer that conforms to the "PrettyPrinter" protocol from
 # gdb.printing.  It can also be used directly as an old-style printer.
@@ -740,8 +729,8 @@ class Printer(object):
     def add(self, name, function):
         # A small sanity check.
         # FIXME
-        if not self.compiled_rx.match(name + '<>'):
-            raise ValueError, 'libstdc++ programming error: "%s" does not match' % name
+        if not self.compiled_rx.match(f'{name}<>'):
+            raise (ValueError, f'libstdc++ programming error: "{name}" does not match')
         printer = RxPrinter(name, function)
         self.subprinters.append(printer)
         self.lookup[name] = printer
@@ -749,12 +738,12 @@ class Printer(object):
     # Add a name using _GLIBCXX_BEGIN_NAMESPACE_VERSION.
     def add_version(self, base, name, function):
         self.add(base + name, function)
-        self.add(base + '__7::' + name, function)
+        self.add(f'{base}__7::{name}', function)
 
     # Add a name using _GLIBCXX_BEGIN_NAMESPACE_CONTAINER.
     def add_container(self, base, name, function):
         self.add_version(base, name, function)
-        self.add_version(base + '__cxx1998::', name, function)
+        self.add_version(f'{base}__cxx1998::', name, function)
 
     @staticmethod
     def get_basic_type(type):
@@ -779,11 +768,7 @@ class Printer(object):
             return None
 
         basename = match.group(1)
-        if basename in self.lookup:
-            return self.lookup[basename].invoke(val)
-
-        # Cannot find a pretty printer.  Return None.
-        return None
+        return self.lookup[basename].invoke(val) if basename in self.lookup else None
 
 libstdcxx_printer = None
 
@@ -800,7 +785,7 @@ def register_libstdcxx_printers (obj):
             obj = gdb
         obj.pretty_printers.append(libstdcxx_printer)
 
-def build_libstdcxx_dictionary ():
+def build_libstdcxx_dictionary():
     global libstdcxx_printer
 
     libstdcxx_printer = Printer("libstdc++-v6")
@@ -808,7 +793,7 @@ def build_libstdcxx_dictionary ():
     # For _GLIBCXX_BEGIN_NAMESPACE_VERSION.
     vers = '(__7::)?'
     # For _GLIBCXX_BEGIN_NAMESPACE_CONTAINER.
-    container = '(__cxx1998::' + vers + ')?'
+    container = f'(__cxx1998::{vers})?'
 
     # libstdc++ objects requiring pretty-printing.
     # In order from:
@@ -889,40 +874,39 @@ def build_libstdcxx_dictionary ():
     # Extensions.
     libstdcxx_printer.add_version('__gnu_cxx::', 'slist', StdSlistPrinter)
 
-    if True:
-        # These shouldn't be necessary, if GDB "print *i" worked.
-        # But it often doesn't, so here they are.
-        libstdcxx_printer.add_container('std::', '_List_iterator',
-                                        StdListIteratorPrinter)
-        libstdcxx_printer.add_container('std::', '_List_const_iterator',
-                                        StdListIteratorPrinter)
-        libstdcxx_printer.add_version('std::', '_Rb_tree_iterator',
-                                      StdRbtreeIteratorPrinter)
-        libstdcxx_printer.add_version('std::', '_Rb_tree_const_iterator',
-                                      StdRbtreeIteratorPrinter)
-        libstdcxx_printer.add_container('std::', '_Deque_iterator',
-                                        StdDequeIteratorPrinter)
-        libstdcxx_printer.add_container('std::', '_Deque_const_iterator',
-                                        StdDequeIteratorPrinter)
-        libstdcxx_printer.add_version('__gnu_cxx::', '__normal_iterator',
-                                      StdVectorIteratorPrinter)
-        libstdcxx_printer.add_version('__gnu_cxx::', '_Slist_iterator',
-                                      StdSlistIteratorPrinter)
+    # These shouldn't be necessary, if GDB "print *i" worked.
+    # But it often doesn't, so here they are.
+    libstdcxx_printer.add_container('std::', '_List_iterator',
+                                    StdListIteratorPrinter)
+    libstdcxx_printer.add_container('std::', '_List_const_iterator',
+                                    StdListIteratorPrinter)
+    libstdcxx_printer.add_version('std::', '_Rb_tree_iterator',
+                                  StdRbtreeIteratorPrinter)
+    libstdcxx_printer.add_version('std::', '_Rb_tree_const_iterator',
+                                  StdRbtreeIteratorPrinter)
+    libstdcxx_printer.add_container('std::', '_Deque_iterator',
+                                    StdDequeIteratorPrinter)
+    libstdcxx_printer.add_container('std::', '_Deque_const_iterator',
+                                    StdDequeIteratorPrinter)
+    libstdcxx_printer.add_version('__gnu_cxx::', '__normal_iterator',
+                                  StdVectorIteratorPrinter)
+    libstdcxx_printer.add_version('__gnu_cxx::', '_Slist_iterator',
+                                  StdSlistIteratorPrinter)
 
-        # Debug (compiled with -D_GLIBCXX_DEBUG) printer
-        # registrations.  The Rb_tree debug iterator when unwrapped
-        # from the encapsulating __gnu_debug::_Safe_iterator does not
-        # have the __norm namespace. Just use the existing printer
-        # registration for that.
-        libstdcxx_printer.add('__gnu_debug::_Safe_iterator',
-                              StdDebugIteratorPrinter)
-        libstdcxx_printer.add('std::__norm::_List_iterator',
-                              StdListIteratorPrinter)
-        libstdcxx_printer.add('std::__norm::_List_const_iterator',
-                              StdListIteratorPrinter)
-        libstdcxx_printer.add('std::__norm::_Deque_const_iterator',
-                              StdDequeIteratorPrinter)
-        libstdcxx_printer.add('std::__norm::_Deque_iterator',
-                              StdDequeIteratorPrinter)
+    # Debug (compiled with -D_GLIBCXX_DEBUG) printer
+    # registrations.  The Rb_tree debug iterator when unwrapped
+    # from the encapsulating __gnu_debug::_Safe_iterator does not
+    # have the __norm namespace. Just use the existing printer
+    # registration for that.
+    libstdcxx_printer.add('__gnu_debug::_Safe_iterator',
+                          StdDebugIteratorPrinter)
+    libstdcxx_printer.add('std::__norm::_List_iterator',
+                          StdListIteratorPrinter)
+    libstdcxx_printer.add('std::__norm::_List_const_iterator',
+                          StdListIteratorPrinter)
+    libstdcxx_printer.add('std::__norm::_Deque_const_iterator',
+                          StdDequeIteratorPrinter)
+    libstdcxx_printer.add('std::__norm::_Deque_iterator',
+                          StdDequeIteratorPrinter)
 
 build_libstdcxx_dictionary ()

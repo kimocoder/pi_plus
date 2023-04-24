@@ -30,14 +30,13 @@ def _prompt_object_attr(func, what, attr, nattr):
     try:
         obj = func()
     except gdb.error:
-        return '<no %s>' % what
-    if hasattr(obj, attr):
-        result = getattr(obj, attr)
-        if callable(result):
-            result = result()
-        return result
-    else:
-        return '<no attribute %s on current %s>' % (attr, what)
+        return f'<no {what}>'
+    if not hasattr(obj, attr):
+        return f'<no attribute {attr} on current {what}>'
+    result = getattr(obj, attr)
+    if callable(result):
+        result = result()
+    return result
 
 def _prompt_frame(attr):
     "The selected frame; an argument names a frame parameter."
@@ -97,16 +96,18 @@ def prompt_help():
     """Generate help dynamically from the __doc__ strings of attribute
     functions."""
 
-    result = ''
     keys = prompt_substitutions.keys()
     keys.sort()
-    for key in keys:
-        result += '  \\%s\t%s\n' % (key, prompt_substitutions[key].__doc__)
-    result += """
+    return (
+        ''.join(
+            '  \\%s\t%s\n' % (key, prompt_substitutions[key].__doc__)
+            for key in keys
+        )
+        + """
 A substitution can be used in a simple form, like "\\f".
 An argument can also be passed to it, like "\\f{name}".
 The meaning of the argument depends on the particular substitution."""
-    return result
+    )
 
 def substitute_prompt(prompt):
     "Perform substitutions on PROMPT."
@@ -116,7 +117,7 @@ def substitute_prompt(prompt):
     i = 0
     while i < plen:
         if prompt[i] == '\\':
-            i = i + 1
+            i += 1
             if i >= plen:
                 break
             cmdch = prompt[i]

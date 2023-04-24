@@ -40,19 +40,19 @@ if gdb.current_objfile () is not None:
     # In some bizarre configuration we might have found a match in the
     # middle of a directory name.
     if prefix[-1] != '/':
-        prefix = os.path.dirname (prefix) + '/'
+        prefix = f'{os.path.dirname(prefix)}/'
 
     # Strip off the prefix.
     pythondir = pythondir[len (prefix):]
     libdir = libdir[len (prefix):]
 
     # Compute the ".."s needed to get from libdir to the prefix.
-    dotdots = ('..' + os.sep) * len (libdir.split (os.sep))
+    dotdots = f'..{os.sep}' * len (libdir.split (os.sep))
 
     objfile = gdb.current_objfile ().filename
     dir_ = os.path.join (os.path.dirname (objfile), dotdots, pythondir)
 
-    if not dir_ in sys.path:
+    if dir_ not in sys.path:
         sys.path.insert(0, dir_)
 
 # Load the pretty-printers.
