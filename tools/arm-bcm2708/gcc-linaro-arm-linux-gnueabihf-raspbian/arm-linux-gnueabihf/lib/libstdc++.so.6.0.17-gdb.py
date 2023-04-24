@@ -40,7 +40,7 @@ if gdb.current_objfile () is not None:
     # In some bizarre configuration we might have found a match in the
     # middle of a directory name.
     if prefix[-1] != '/':
-        prefix = os.path.dirname (prefix) + '/'
+        prefix = f'{os.path.dirname(prefix)}/'
 
     # Strip off the prefix.
     pythondir = pythondir[len (prefix):]
@@ -50,12 +50,12 @@ if gdb.current_objfile () is not None:
     backdirs = len (libdir.split (os.sep))
     if not os.path.basename(os.path.dirname(__file__)).startswith('lib'):
         backdirs += 1 # multiarch subdir
-    dotdots = ('..' + os.sep) * backdirs
+    dotdots = f'..{os.sep}' * backdirs
 
     objfile = gdb.current_objfile ().filename
     dir_ = os.path.join (os.path.dirname (objfile), dotdots, pythondir)
 
-    if not dir_ in sys.path:
+    if dir_ not in sys.path:
         sys.path.insert(0, dir_)
 
 # Load the pretty-printers.

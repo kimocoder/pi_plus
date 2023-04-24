@@ -40,10 +40,10 @@ def get_kallsyms_table():
 
 def get_sym(sloc):
 	loc = int(sloc)
-	for i in kallsyms:
-		if (i['loc'] >= loc):
-			return (i['name'], i['loc']-loc)
-	return (None, 0)
+	return next(
+		((i['name'], i['loc'] - loc) for i in kallsyms if (i['loc'] >= loc)),
+		(None, 0),
+	)
 
 def print_drop_table():
 	print "%25s %25s %25s" % ("LOCATION", "OFFSET", "COUNT")

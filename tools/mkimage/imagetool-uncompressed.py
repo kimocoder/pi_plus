@@ -9,37 +9,29 @@ try:
 except:
    kernel_image = ""
 
-if kernel_image == "":
-  print("usage : imagetool-uncompressed.py <kernel image>");
-  sys.exit(0)
-   
+if not kernel_image:
+   print("usage : imagetool-uncompressed.py <kernel image>");
+   sys.exit(0)
+
 re_line = re.compile(r"0x(?P<value>[0-9a-f]{8})")
 
-mem = [0 for i in range(32768)]
+mem = [0 for _ in range(32768)]
 
 def load_to_mem(name, addr):
-   f = open(name)
+   with open(name) as f:
+      for l in f:
+         if m := re_line.match(l):
+            value = int(m.group("value"), 16)
 
-   for l in f.readlines():
-      m = re_line.match(l)
-
-      if m:
-         value = int(m.group("value"), 16)
-
-         for i in range(4):
-            mem[addr] = int(value >> i * 8 & 0xff)
-            addr += 1
-
-   f.close()
+            for i in range(4):
+               mem[addr] = int(value >> i * 8 & 0xff)
+               addr += 1
 
 load_to_mem("boot-uncompressed.txt", 0x00000000)
 load_to_mem("args-uncompressed.txt", 0x00000100)
 
-f = open("first32k.bin", "wb")
+with open("first32k.bin", "wb") as f:
+   for m in mem:
+      f.write(chr(m))
 
-for m in mem:
-   f.write(chr(m))
-
-f.close()
-
-os.system("cat first32k.bin " + kernel_image + " > kernel.img")
+os.system(f"cat first32k.bin {kernel_image} > kernel.img")
